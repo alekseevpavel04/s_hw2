@@ -6,30 +6,38 @@ train:
     _target_: torchvision.transforms.v2.Compose
     transforms:
       - _target_: src.transforms.wav_augs.Gain
-        p: 0.2
-      - _target_: src.transforms.wav_augs.ColoredNoise
-        p: 0.3
-        sample_rate: 32
-      - _target_: src.transforms.wav_augs.BackGroundNoise
-        p: 0.2
-      - _target_: src.transforms.wav_augs.Shift
-        p: 0.3
-      - _target_: src.transforms.wav_augs.PitchShift
-        p: 0.2
-      - _target_: src.transforms.wav_augs.BandPassFilter
         p: 0.1
-        low_freq: 50
-        high_freq: 2000
+        sample_rate: 16000
+      - _target_: src.transforms.wav_augs.ColoredNoise
+        p: 0.1
+        sample_rate: 16000
+      - _target_: src.transforms.wav_augs.Shift
+        p: 0.1
+        sample_rate: 16000
+      - _target_: src.transforms.wav_augs.PitchShift
+        p: 0.1
+        sample_rate: 16000
+      - _target_: src.transforms.wav_augs.BandPassFilter
+        min_center_frequency: 300
+        max_center_frequency: 4000
+        min_bandwidth_fraction: 1.5
+        p: 0.1
+        sample_rate: 16000
       - _target_: src.transforms.wav_augs.BandStopFilter
         p: 0.1
-        low_freq: 50
-        high_freq: 2000
+        max_bandwidth_fraction: 1.5
+        min_center_frequency: 1500
+        max_center_frequency: 2500
+        sample_rate: 16000
       - _target_: src.transforms.wav_augs.HighPassFilter
         p: 0.1
-        cutoff_freq: 500
+        max_cutoff_freq: 1000
+        sample_rate: 16000
       - _target_: src.transforms.wav_augs.LowPassFilter
         p: 0.1
-        cutoff_freq: 2000
+        min_cutoff_freq: 1000
+        sample_rate: 16000
+
 
   spectrogram:
     _target_: torchvision.transforms.v2.Compose
@@ -38,9 +46,6 @@ train:
         freq_mask_param: 40
         p: 0.2
       - _target_: src.transforms.spec_augs.TimeMasking
-        time_mask_param: 40
-        p: 0.2
-      - _target_: src.transforms.spec_augs.TimeStretch
         time_mask_param: 40
         p: 0.2
 
