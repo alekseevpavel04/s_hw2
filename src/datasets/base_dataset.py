@@ -84,6 +84,10 @@ class BaseDataset(Dataset):
         text = data_dict["text"]
         text_encoded = self.text_encoder.encode(text)
 
+        # TODO: Apply wave augmentations if present
+        if self.instance_transforms and "wave_augment" in self.instance_transforms:
+            audio = self.instance_transforms["wave_augment"](audio)
+
         spectrogram = self.get_spectrogram(audio)
 
         instance_data = {
@@ -94,7 +98,6 @@ class BaseDataset(Dataset):
             "audio_path": audio_path,
         }
 
-        # TODO think of how to apply wave augs before calculating spectrogram
         # Note: you may want to preserve both audio in time domain and
         # in time-frequency domain for logging
         instance_data = self.preprocess_data(instance_data)
