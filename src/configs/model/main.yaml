@@ -1,0 +1,6 @@
+_target_: src.model.SpeechRecognitionModel
+spec_dim: 128
+num_rnn_layers: 5
+rnn_hidden_size: 512
+is_bidirectional: True
+rnn_type: 'gru'
