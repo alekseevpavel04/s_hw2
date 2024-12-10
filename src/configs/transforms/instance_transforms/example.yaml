@@ -35,11 +35,14 @@ train:
     _target_: torchvision.transforms.v2.Compose
     transforms:
       - _target_: src.transforms.spec_augs.FrequencyMasking
-        freq_mask_param: 50
-        p: 0.3
+        freq_mask_param: 40
+        p: 0.2
       - _target_: src.transforms.spec_augs.TimeMasking
         time_mask_param: 40
-        p: 0.3
+        p: 0.2
+      - _target_: src.transforms.spec_augs.TimeStretch
+        time_mask_param: 40
+        p: 0.2
 
 inference:
   get_spectrogram:
