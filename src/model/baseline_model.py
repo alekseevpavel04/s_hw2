@@ -26,17 +26,10 @@ class BaselineModel(nn.Module):
         )
 
     def forward(self, spectrogram, spectrogram_length, **batch):
-        """
-        Model forward method.
-
-        Args:
-            spectrogram (Tensor): input spectrogram.
-            spectrogram_length (Tensor): spectrogram original lengths.
-        Returns:
-            output (dict): output dict containing log_probs and
-                transformed lengths.
-        """
-        output = self.net(spectrogram.transpose(1, 2))
+        print(f"Input shape: {spectrogram.shape}")
+        spectrogram = spectrogram.transpose(1, 2)
+        print(f"Shape after transpose: {spectrogram.shape}")
+        output = self.net(spectrogram)
         log_probs = nn.functional.log_softmax(output, dim=-1)
         log_probs_length = self.transform_input_lengths(spectrogram_length)
         return {"log_probs": log_probs, "log_probs_length": log_probs_length}
