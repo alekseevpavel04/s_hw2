@@ -84,7 +84,6 @@ class CTCTextEncoder:
 
         return "".join(decoded_chars).strip()
 
-
     def ctc_beam_search(self, probs: torch.Tensor) -> str:
         """
         Perform beam search decoding.
@@ -97,21 +96,25 @@ class CTCTextEncoder:
             str: Decoded text.
         """
         T, C = probs.shape
-        beam = [(0.0, [])]  # Initialize beam with (log_prob, sequence)
+        beam = [(0.0, tuple())]  # Initialize beam with (log_prob, sequence)
 
         for t in range(T):
             next_beam = defaultdict(lambda: -float('inf'))
+
             for log_prob, seq in beam:
                 for c in range(C):
-                    new_seq = seq + [c]
+                    new_seq = seq + (c,)  # Add new token to sequence
                     new_log_prob = log_prob + probs[t, c].item()
-                    next_beam[tuple(new_seq)] = max(next_beam[tuple(new_seq)], new_log_prob)
+
+                    if new_log_prob > next_beam[new_seq]:
+                        next_beam[new_seq] = new_log_prob
 
             # Keep top `beam_size` sequences
-            beam = heapq.nlargest(self.beam_size, next_beam.items(), key=lambda x: x[1])
+            beam = [(prob, seq) for seq, prob in
+                    heapq.nlargest(self.beam_size, next_beam.items(), key=lambda x: x[1])]
 
         # Choose the sequence with the highest probability
-        best_seq = max(beam, key=lambda x: x[1])[0]
+        best_seq = max(beam, key=lambda x: x[0])[1]
 
         # Decode the sequence
         return self.ctc_decode(best_seq)
