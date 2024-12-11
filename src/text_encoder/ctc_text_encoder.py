@@ -1,9 +1,8 @@
 import re
 from string import ascii_lowercase
-
 import torch
-
-# TODO add CTC decode
+import heapq
+from collections import defaultdict
 # TODO add BPE
 # Note: think about metrics and encoder
 # The design can be remarkably improved
@@ -13,7 +12,7 @@ import torch
 class CTCTextEncoder:
     EMPTY_TOK = ""
 
-    def __init__(self, alphabet=None, **kwargs):
+    def __init__(self, alphabet=None, beam_size = 10, **kwargs):
         """
         Args:
             alphabet (list): alphabet for language. If None, it will be
@@ -28,6 +27,8 @@ class CTCTextEncoder:
 
         self.ind2char = dict(enumerate(self.vocab))
         self.char2ind = {v: k for k, v in self.ind2char.items()}
+
+        self.beam_size = beam_size
 
     def __len__(self):
         return len(self.vocab)
@@ -82,6 +83,38 @@ class CTCTextEncoder:
             prev_token = token
 
         return "".join(decoded_chars).strip()
+
+
+    def ctc_beam_search(self, probs: torch.Tensor) -> str:
+        """
+        Perform beam search decoding.
+
+        Args:
+            probs (torch.Tensor): Tensor of shape (T, C), where T is the sequence length
+                                  and C is the number of classes (vocabulary size).
+
+        Returns:
+            str: Decoded text.
+        """
+        T, C = probs.shape
+        beam = [(0.0, [])]  # Initialize beam with (log_prob, sequence)
+
+        for t in range(T):
+            next_beam = defaultdict(lambda: -float('inf'))
+            for log_prob, seq in beam:
+                for c in range(C):
+                    new_seq = seq + [c]
+                    new_log_prob = log_prob + probs[t, c].item()
+                    next_beam[tuple(new_seq)] = max(next_beam[tuple(new_seq)], new_log_prob)
+
+            # Keep top `beam_size` sequences
+            beam = heapq.nlargest(self.beam_size, next_beam.items(), key=lambda x: x[1])
+
+        # Choose the sequence with the highest probability
+        best_seq = max(beam, key=lambda x: x[1])[0]
+
+        # Decode the sequence
+        return self.ctc_decode(best_seq)
 
     @staticmethod
     def normalize_text(text: str):
