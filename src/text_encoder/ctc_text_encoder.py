@@ -67,7 +67,30 @@ class CTCTextEncoder:
         return "".join(decoded_chars).strip()
 
     def ctc_beam_search(self, probs) -> str:
-        return self.decoder.decode(probs, beam_width=self.beam_size)
+        """
+        Выполняет beam search декодирование используя pyctcdecode.
+
+        Args:
+            probs: Массив вероятностей формы (T, C), где T - длина последовательности,
+                  C - размер словаря. Может быть torch.Tensor или np.ndarray.
+
+        Returns:
+            str: Декодированный текст.
+        """
+        # Проверяем тип входных данных и конвертируем при необходимости
+        if isinstance(probs, torch.Tensor):
+            probs = probs.detach().cpu().numpy()
+
+        # Используем beam search из pyctcdecode
+        beam_results = self.decoder.decode_beams(
+            probs,
+            beam_width=self.beam_size
+        )
+
+        # Берем лучший результат
+        best_text = beam_results[0][0]
+
+        return best_text
 
     @staticmethod
     def normalize_text(text: str):
