@@ -21,11 +21,11 @@ class CTCTextEncoder:
         self.lm = lm
 
         with open(vocab) as f:
-            unigrams = [t.lower() for t in f.read().strip().split("\n")]
+            unigrams = [x.strip() for x in f.readlines()]
 
         if lm:
             self.decoder = build_ctcdecoder(
-                labels=self.vocab,
+                [w.upper() for w in self.vocab],
                 kenlm_model_path = lm,
                 unigrams = unigrams
             )
