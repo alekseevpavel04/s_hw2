@@ -17,26 +17,6 @@ train:
       - _target_: src.transforms.wav_augs.PitchShift
         p: 0.05
         sample_rate: 16000
-      - _target_: src.transforms.wav_augs.BandPassFilter
-        min_center_frequency: 300
-        max_center_frequency: 4000
-        min_bandwidth_fraction: 1.5
-        p: 0.05
-        sample_rate: 16000
-      - _target_: src.transforms.wav_augs.BandStopFilter
-        p: 0.05
-        max_bandwidth_fraction: 1.5
-        min_center_frequency: 1500
-        max_center_frequency: 2500
-        sample_rate: 16000
-      - _target_: src.transforms.wav_augs.HighPassFilter
-        p: 0.05
-        max_cutoff_freq: 1000
-        sample_rate: 16000
-      - _target_: src.transforms.wav_augs.LowPassFilter
-        p: 0.05
-        min_cutoff_freq: 1000
-        sample_rate: 16000
 
 
   spectrogram:
