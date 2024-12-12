@@ -3,13 +3,11 @@ from string import ascii_lowercase
 import torch
 import numpy as np
 from pyctcdecode import build_ctcdecoder
-from collections import defaultdict
-
 
 class CTCTextEncoder:
     EMPTY_TOK = ""
 
-    def __init__(self, alphabet=None, beam_size=10, lm = None, **kwargs):
+    def __init__(self, alphabet=None, beam_size=100, lm = None, vocab = None, **kwargs):
         if alphabet is None:
             alphabet = list(ascii_lowercase + " ")
 
@@ -20,14 +18,20 @@ class CTCTextEncoder:
         self.char2ind = {v: k for k, v in self.ind2char.items()}
 
         self.beam_size = beam_size
+        self.lm = lm
+
+        with open(vocab) as f:
+            unigrams = [t.lower() for t in f.read().strip().split("\n")]
+
         if lm:
             self.decoder = build_ctcdecoder(
-                labels=self.alphabet,
-                kenlm_model_path = lm
+                labels=self.vocab,
+                kenlm_model_path = lm,
+                unigrams = unigrams
             )
         else:
             self.decoder = build_ctcdecoder(
-                labels=self.alphabet,
+                labels=self.vocab,
             )
 
     def __len__(self):
@@ -67,30 +71,17 @@ class CTCTextEncoder:
         return "".join(decoded_chars).strip()
 
     def ctc_beam_search(self, probs) -> str:
-        """
-        Выполняет beam search декодирование используя pyctcdecode.
-
-        Args:
-            probs: Массив вероятностей формы (T, C), где T - длина последовательности,
-                  C - размер словаря. Может быть torch.Tensor или np.ndarray.
-
-        Returns:
-            str: Декодированный текст.
-        """
-        # Проверяем тип входных данных и конвертируем при необходимости
         if isinstance(probs, torch.Tensor):
-            probs = probs.detach().cpu().numpy()
+            probs = probs.cpu().numpy()
 
-        # Используем beam search из pyctcdecode
-        beam_results = self.decoder.decode_beams(
-            probs,
-            beam_width=self.beam_size
-        )
+        # Применяем softmax для преобразования логитов в вероятности
+        def softmax(x):
+            exp_x = np.exp(x - np.max(x, axis=1, keepdims=True))
+            return exp_x / np.sum(exp_x, axis=1, keepdims=True)
 
-        # Берем лучший результат
-        best_text = beam_results[0][0]
+        probs = softmax(probs)
 
-        return best_text
+        return self.decoder.decode(probs, beam_width=self.beam_size)
 
     @staticmethod
     def normalize_text(text: str):

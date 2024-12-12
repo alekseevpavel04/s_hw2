@@ -21,6 +21,7 @@ loss_function:
 text_encoder:
   _target_: src.text_encoder.CTCTextEncoder
   lm: 3-gram.pruned.1e-7.arpa
+  vocab: librispeech-vocab.txt
 trainer:
   log_step: 50
   n_epochs: 50
