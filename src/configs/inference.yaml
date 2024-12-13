@@ -10,6 +10,8 @@ inferencer:
   device: auto # device name or "auto"
   save_path: "example" # any name here, can be a dataset name
   seed: 1
-  from_pretrained: "saved/testing/model_best.pth" # path to the pretrained model
+  from_pretrained: "model_best.pth" # path to the pretrained model
 text_encoder:
   _target_: src.text_encoder.CTCTextEncoder
+  lm: 3-gram.pruned.1e-7.arpa
+  vocab: librispeech-vocab.txt
