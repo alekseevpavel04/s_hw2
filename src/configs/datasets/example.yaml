@@ -1,6 +1,6 @@
 train:
   _target_: src.datasets.LibrispeechDataset
-  part: "train_all"
+  part: "train-clean-100"
   instance_transforms: ${transforms.instance_transforms.train}
   max_audio_length: 20.0
   max_text_length: 200
@@ -9,7 +9,7 @@ val:
   part: "dev-clean"
   max_audio_length: 20.0
   max_text_length: 200
-  limit: 20
+  limit: 50
   instance_transforms: ${transforms.instance_transforms.inference}
 test:
   _target_: src.datasets.LibrispeechDataset
@@ -17,4 +17,4 @@ test:
   instance_transforms: ${transforms.instance_transforms.inference}
   max_audio_length: 20.0
   max_text_length: 200
-  limit: 20
+  limit: 50

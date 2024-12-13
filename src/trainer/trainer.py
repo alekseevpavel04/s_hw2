@@ -90,7 +90,7 @@ class Trainer(BaseTrainer):
         self.writer.add_image("spectrogram", image)
 
     def log_predictions(
-        self, text, log_probs, log_probs_length, audio_path, examples_to_log=10, **batch
+        self, text, log_probs, log_probs_length, audio_path, examples_to_log=100, **batch
     ):
         # TODO add beam search
         # Note: by improving text encoder and metrics design

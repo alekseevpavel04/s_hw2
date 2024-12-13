@@ -81,7 +81,7 @@ class CTCTextEncoder:
 
         probs = softmax(probs)
 
-        return self.decoder.decode(probs, beam_width=self.beam_size)
+        return self.normalize_text(self.decoder.decode(probs, beam_width=self.beam_size))
 
     @staticmethod
     def normalize_text(text: str):

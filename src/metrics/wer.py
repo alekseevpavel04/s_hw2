@@ -29,10 +29,9 @@ class ArgmaxWERMetric(BaseMetric):
         return sum(wers) / len(wers)
 
 class BeamSearchWERMetric(BaseMetric):
-    def __init__(self, text_encoder, beam_size, *args, **kwargs):
+    def __init__(self, text_encoder, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.text_encoder = text_encoder
-        self.beam_size = beam_size
 
     def __call__(
             self, log_probs: Tensor, log_probs_length: Tensor, text: List[str], **kwargs

@@ -1,207 +1,170 @@
+import math
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from torch import Tensor
+from typing import Tuple
 
 
-class MaskedConvBlock(nn.Module):
-    """
-    Модуль свёрточных слоёв с маскированием для работы с последовательностями переменной длины
-    """
+class UnifiedDeepSpeech2(nn.Module):
+    supported_rnns = {'lstm': nn.LSTM, 'gru': nn.GRU, 'rnn': nn.RNN}
 
-    def __init__(self, layers):
-        """
-        Args:
-            layers (nn.Sequential): Последовательность свёрточных слоёв
-        """
+    def __init__(
+            self,
+            input_dim: int,
+            n_tokens: int,
+            rnn_type='gru',
+            num_rnn_layers: int = 5,
+            rnn_hidden_dim: int = 512,
+            dropout_p: float = 0.1,
+            bidirectional: bool = True,
+    ):
         super().__init__()
-        self.layers = layers
+
+        self.in_channels, self.out_channels = 1, 32
+        self._build_cnn_layers()
+        self._setup_rnn_dimensions(rnn_hidden_dim)
+        self._construct_rnn_stack(rnn_type, num_rnn_layers, dropout_p, bidirectional)
+        self._build_classifier(n_tokens, rnn_hidden_dim)
+
+    def _build_cnn_layers(self):
+        conv_configs = [
+            ((41, 11), (2, 2), (20, 5)),
+            ((21, 11), (2, 1), (10, 5))
+        ]
+        layers = []
+        in_ch = self.in_channels
+
+        for kernel, stride, padding in conv_configs:
+            layers.extend([
+                nn.Conv2d(in_ch, self.out_channels, kernel, stride, padding),
+                nn.BatchNorm2d(self.out_channels),
+                nn.Hardtanh(0, 20, inplace=True)
+            ])
+            in_ch = self.out_channels
+
+        self.conv_block = MaskedConvolution(nn.Sequential(*layers))
+
+    def _setup_rnn_dimensions(self, rnn_hidden_dim):
+        self.rnn_hidden_dim = rnn_hidden_dim
+        rnn_input_size = 128  # n_mels
+
+        for kernel, stride, _ in [(41, 2, None), (21, 2, None)]:
+            rnn_input_size = self._compute_conv_output_size(rnn_input_size, kernel, stride)
+
+        self.rnn_input_size = rnn_input_size * self.out_channels
+
+    def _construct_rnn_stack(self, rnn_type, num_layers, dropout_p, bidirectional):
+        self.rnn_stack = nn.ModuleList([
+            EnhancedRNNLayer(
+                self.rnn_input_size if i == 0 else self.rnn_hidden_dim,
+                self.rnn_hidden_dim,
+                rnn_type,
+                bidirectional,
+                dropout_p
+            ) for i in range(num_layers)
+        ])
+
+    def _build_classifier(self, n_tokens, rnn_hidden_dim):
+        self.classifier = nn.Sequential(
+            nn.LayerNorm(rnn_hidden_dim),
+            nn.Linear(rnn_hidden_dim, n_tokens, bias=False)
+        )
+
+    @staticmethod
+    def _compute_conv_output_size(size, kernel, stride):
+        return int(math.floor(size + 2 * (kernel // 2) - kernel) / stride + 1)
+
+    def forward(self, spectrogram, spectrogram_length, **batch):
+        x, lengths = self.conv_block(spectrogram.unsqueeze(1), spectrogram_length)
+
+        # Reshape for RNN
+        b, c, h, w = x.size()
+        x = x.permute(0, 3, 1, 2).contiguous().view(b, w, c * h)
+
+        # Process through RNN stack
+        for rnn in self.rnn_stack:
+            x = rnn(x, lengths)
+
+        return {
+            "log_probs": self.classifier(x).log_softmax(dim=-1),
+            "log_probs_length": lengths
+        }
+
+    def transform_input_lengths(self, lengths):
+        return lengths
+
+    def __str__(self):
+        params = {
+            'total': sum(p.numel() for p in self.parameters()),
+            'trainable': sum(p.numel() for p in self.parameters() if p.requires_grad)
+        }
+        return (f"{super().__str__()}\n"
+                f"All parameters: {params['total']}\n"
+                f"Trainable parameters: {params['trainable']}")
+
+
+class MaskedConvolution(nn.Module):
+    def __init__(self, sequential):
+        super().__init__()
+        self.conv_seq = sequential
+
+    def _compute_new_length(self, module, length):
+        if isinstance(module, nn.Conv2d):
+            return (length + 2 * module.padding[1] -
+                    module.dilation[1] * (module.kernel_size[1] - 1) - 1
+                    ).float().div(module.stride[1]).int() + 1
+        return length
 
     def forward(self, x, seq_lengths):
-        """
-        Применяет свёрточные слои с маскированием для обработки переменной длины входных данных.
+        for module in self.conv_seq:
+            x = module(x)
+            mask = torch.zeros(x.size(), dtype=torch.bool, device=x.device)
+            seq_lengths = self._compute_new_length(module, seq_lengths)
 
-        Args:
-            x (Tensor): Входной тензор с размерностью [B, 1, F, T].
-            seq_lengths (Tensor): Длины последовательностей [B].
+            for idx, length in enumerate(seq_lengths):
+                if (mask[idx].size(2) - length) > 0:
+                    mask[idx, :, :, length:] = True
 
-        Returns:
-            Tensor: Результат после применения слоёв [B, C, F', T'].
-            Tensor: Обновлённые длины последовательностей [B].
-        """
-        for layer in self.layers:
-            x = layer(x)
-            seq_lengths = self.adjust_lengths(layer, seq_lengths)
-
-            device = x.device  # Используем устройство, на котором находится x
-            seq_lengths = seq_lengths.to(device)  # Переносим seq_lengths на то же устройство, что и x
-
-            mask = torch.arange(x.size(-1), device=device) >= seq_lengths.unsqueeze(-1)  # [B, T]
-
-            x.masked_fill_(mask.unsqueeze(1).unsqueeze(2), 0)
+            x.masked_fill_(mask, 0)
 
         return x, seq_lengths
 
-    def adjust_lengths(self, layer, seq_lengths):
-        """
-        Корректирует длины последовательностей в зависимости от слоя.
 
-        Args:
-            layer (nn.Module): Текущий слой (например, Conv2d или MaxPool2d).
-            seq_lengths (Tensor): Текущие длины последовательностей.
-
-        Returns:
-            Tensor: Обновлённые длины последовательностей после применения слоя.
-        """
-        if isinstance(layer, nn.Conv2d):
-            numerator = seq_lengths + 2 * layer.padding[1] - layer.dilation[1] * (layer.kernel_size[1] - 1) - 1
-            seq_lengths = (numerator.float() / float(layer.stride[1])).int() + 1
-        elif isinstance(layer, nn.MaxPool2d):
-            seq_lengths = seq_lengths // 2
-
-        return seq_lengths.int()
-
-
-class NormalizedRNNBlock(nn.Module):
-    """
-    RNN блок с нормализацией по батчам и активацией.
-    """
-
-    def __init__(self, input_dim, hidden_dim, is_bidirectional, rnn_type):
-        """
-        Args:
-            input_dim (int): Размерность входа для RNN.
-            hidden_dim (int): Размерность скрытых состояний RNN.
-            is_bidirectional (bool): Используется ли двусторонний RNN.
-            rnn_type (str): Тип RNN ('lstm', 'gru', или 'rnn').
-        """
+class EnhancedRNNLayer(nn.Module):
+    def __init__(self, input_size, hidden_size, rnn_type, bidirectional, dropout_p):
         super().__init__()
-        rnn_types = {
-            "lstm": nn.LSTM,
-            "gru": nn.GRU,
-            "rnn": nn.RNN,
-        }
 
-        self.batch_norm = nn.BatchNorm1d(input_dim)
-        self.activation = nn.ReLU()
+        self.bidirectional = bidirectional
+        self.hidden_size = hidden_size
 
-        self.rnn = rnn_types[rnn_type](
-            input_size=input_dim,
-            hidden_size=hidden_dim,
+        self.norm = nn.BatchNorm1d(input_size)
+        self.activation = nn.Hardtanh(0, 20, inplace=True)
+
+        rnn_class = UnifiedDeepSpeech2.supported_rnns[rnn_type]
+        self.rnn = rnn_class(
+            input_size=input_size,
+            hidden_size=hidden_size,
             num_layers=1,
             bias=True,
             batch_first=True,
-            dropout=0.1,
-            bidirectional=is_bidirectional,
+            dropout=dropout_p,
+            bidirectional=bidirectional
         )
 
-    def forward(self, x, seq_lengths):
-        """
-        Прямой проход через слой RNN.
+    def forward(self, x, lengths):
+        x = self.activation(self.norm(x.transpose(1, 2))).transpose(1, 2)
 
-        Args:
-            x (Tensor): Входной тензор с размерностью [B, T, H].
-            seq_lengths (Tensor): Длины последовательностей [B].
-
-        Returns:
-            Tensor: Результат после RNN слоя.
-        """
-        x = self.activation(self.batch_norm(x.transpose(1, 2)))  # [B, H, T]
-
-        x = x.transpose(1, 2)  # [B, T, H]
-        max_len = x.size(1)
-
-        x = nn.utils.rnn.pack_padded_sequence(x, seq_lengths.cpu(), batch_first=True, enforce_sorted=False)
-        x, _ = self.rnn(x)
-        x, _ = nn.utils.rnn.pad_packed_sequence(x, total_length=max_len, batch_first=True)  # [B, T, H]
-
-        return x
-
-
-class SpeechRecognitionModel(nn.Module):
-    """
-    Модель для распознавания речи, основанная на свёрточных и RNN слоях.
-    """
-
-    def __init__(self, n_tokens , spec_dim=128, num_rnn_layers=5, rnn_hidden_size=512, is_bidirectional=True,
-                 rnn_type='gru'):
-        """
-        Args:
-            n_tokens (int): Количество токенов в словаре.
-            spec_dim (int): Размерность спектрограммы (количество частотных бинов).
-            num_rnn_layers (int): Количество слоёв RNN.
-            rnn_hidden_size (int): Размер скрытого состояния для RNN слоёв.
-            is_bidirectional (bool): Является ли RNN двусторонним.
-            rnn_type (str): Тип RNN ('gru', 'lstm', или 'rnn').
-        """
-        super().__init__()
-
-        in_channels = 1
-        out_channels = 32  # Количество выходных каналов после свёртки
-
-        self.conv_block = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=(41, 11), stride=(2, 2), padding=(20, 5), bias=False),
-            nn.BatchNorm2d(out_channels),
-            nn.Hardtanh(0, 20, inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=(21, 11), stride=(2, 1), padding=(10, 5), bias=False),
-            nn.BatchNorm2d(out_channels),
-            nn.Hardtanh(0, 20, inplace=True),
+        packed = nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True, enforce_sorted=False)
+        output, _ = self.rnn(packed)
+        output, _ = nn.utils.rnn.pad_packed_sequence(
+            output,
+            total_length=x.size(1),
+            batch_first=True
         )
 
-        self.masked_conv = MaskedConvBlock(self.conv_block)
-        conv_output_size = out_channels * (spec_dim // 4)
+        if self.bidirectional:
+            output = output.view(output.size(0), output.size(1), 2, -1)
+            output = output.sum(2)
 
-        self.rnn_blocks = nn.ModuleList()
-        rnn_output_size = rnn_hidden_size * 2 if is_bidirectional else rnn_hidden_size
-
-        for _ in range(num_rnn_layers):
-            self.rnn_blocks.append(
-                NormalizedRNNBlock(
-                    input_dim=conv_output_size,
-                    hidden_dim=rnn_hidden_size,
-                    is_bidirectional=is_bidirectional,
-                    rnn_type=rnn_type,
-                )
-            )
-
-        self.fc = nn.Sequential(
-            nn.LayerNorm(rnn_output_size),
-            nn.Linear(rnn_output_size, n_tokens, bias=False),
-        )
-
-    def forward(self, spectrogram , spectrogram_length, **kwargs):
-        """
-        Прямой проход через модель.
-
-        Args:
-            spectrogram  (Tensor): Входная спектрограмма с размерностью [B, F, T].
-            spectrogram_length (Tensor): Длины спектрограмм [B].
-
-        Returns:
-            dict: Логарифмические вероятности и длины выходных последовательностей.
-        """
-        x = spectrogram.unsqueeze(1)  # [B, 1, F, T]
-        x, output_lengths = self.masked_conv(x, spectrogram_length)  # [B, 32, F/4, T/2], [B]
-
-        B, C, F, T = x.size()
-        x = x.view(B, C * F, T)  # [B, C*F/4, T/2]
-        x = x.transpose(1, 2)  # [B, T/2, C*F/4]
-
-        for rnn_block in self.rnn_blocks:
-            x = rnn_block(x, output_lengths)
-
-        x = self.fc(x)  # [B, T/2, vocab_size]
-        x = x.log_softmax(dim=-1)
-
-        return {"log_probs": x, "log_probs_length": output_lengths}
-
-    def __str__(self):
-        """
-        Выводит информацию о количестве параметров модели.
-        """
-        total_params = sum(p.numel() for p in self.parameters())
-        trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
-
-        model_info = super().__str__()
-        model_info += f"\nTotal parameters: {total_params}"
-        model_info += f"\nTrainable parameters: {trainable_params}"
-
-        return model_info
+        return output
