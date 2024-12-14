@@ -2,6 +2,6 @@ _target_: src.model.UnifiedDeepSpeech2
 input_dim: 128
 rnn_type: 'gru'
 num_rnn_layers: 7
-rnn_hidden_dim: 512
+rnn_hidden_dim: 768
 dropout_p: 0.05
 bidirectional: True
