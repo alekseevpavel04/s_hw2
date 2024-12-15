@@ -23,10 +23,10 @@ train:
     transforms:
       - _target_: src.transforms.spec_augs.FrequencyMasking
         freq_mask_param: 40
-        p: 1
+        p: 0.75
       - _target_: src.transforms.spec_augs.TimeMasking
         time_mask_param: 40
-        p: 1
+        p: 0.75
 
 inference:
   get_spectrogram:
