@@ -3,11 +3,11 @@ import warnings
 import hydra
 import torch
 from hydra.utils import instantiate
-from omegaconf import OmegaConf
+
 from src.datasets.data_utils import get_dataloaders
 from src.trainer import Inferencer
-from src.utils.init_utils import set_random_seed, setup_inference_saving_and_logging
-from pathlib import Path
+from src.utils.init_utils import set_random_seed
+from src.utils.io_utils import ROOT_PATH
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -29,22 +29,15 @@ def main(config):
     else:
         device = config.inferencer.device
 
-    project_config = OmegaConf.to_container(config)
-    logger = setup_saving_and_logging(config)
-    writer = instantiate(config.writer, logger, project_config)
-
     # setup text_encoder
     text_encoder = instantiate(config.text_encoder)
 
     # setup data_loader instances
     # batch_transforms should be put on device
     dataloaders, batch_transforms = get_dataloaders(config, text_encoder, device)
-    batch_transforms = config.transforms
 
     # build model architecture, then print to console
     model = instantiate(config.model, n_tokens=len(text_encoder)).to(device)
-    model.load_state_dict(torch.load(config.inferencer.from_pretrained)["state_dict"])
-    model.eval()
     print(model)
 
     # get metrics
@@ -56,7 +49,7 @@ def main(config):
         )
 
     # save_path for model predictions
-    save_path = Path(config.inferencer.save_path)
+    save_path = ROOT_PATH / "data" / "saved" / config.inferencer.save_path
     save_path.mkdir(exist_ok=True, parents=True)
 
     inferencer = Inferencer(
@@ -68,8 +61,6 @@ def main(config):
         batch_transforms=batch_transforms,
         save_path=save_path,
         metrics=metrics,
-        writer=writer,
-        logger=logger,
         skip_model_load=False,
     )
 
