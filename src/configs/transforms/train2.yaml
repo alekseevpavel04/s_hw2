@@ -1,0 +1,4 @@
+defaults:
+  - batch_transforms: train1
+  - instance_transforms: train2
+  - _self_
