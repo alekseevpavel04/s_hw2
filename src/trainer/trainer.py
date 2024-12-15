@@ -93,12 +93,12 @@ class Trainer(BaseTrainer):
         self.writer.add_image("spectrogram", image)
         self.writer.add_image("spectrogram_raw", image_raw)
 
-    def log_audio(self, text, audio, audio_raw, audio_path, to_log = 5, **batch):
+    def log_audio(self, text, audio, audio_raw, audio_path, to_log = 20, **batch):
         rows = {}
         for i in range(min(to_log, len(text))):
             rows[Path(audio_path[i]).name] = {
-                "raw_audio": wandb.Audio(audio[i].squeeze(0).detach().cpu(), sample_rate=16000),
-                "audio": wandb.Audio(audio_raw[i].squeeze(0).detach().cpu(), sample_rate=16000)
+                "audio": wandb.Audio(audio[i].squeeze(0).detach().cpu(), sample_rate=16000),
+                "raw_audio": wandb.Audio(audio_raw[i].squeeze(0).detach().cpu(), sample_rate=16000)
             }
         self.writer.add_table(
             "audio", pd.DataFrame.from_dict(rows, orient="index")

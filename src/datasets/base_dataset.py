@@ -83,27 +83,18 @@ class BaseDataset(Dataset):
         audio_raw = self.load_audio(audio_path)
         text = data_dict["text"]
         text_encoded = self.text_encoder.encode(text)
-        audio = audio_raw.clone()
-
-        # Apply wave augmentations if present
-        if self.instance_transforms and "wave_augment" in self.instance_transforms:
-            audio = self.instance_transforms["wave_augment"](audio)
-
         spectrogram_raw = self.get_spectrogram(audio_raw)
-        spectrogram = self.get_spectrogram(audio)
 
         instance_data = {
             "audio_raw": audio_raw,
-            "audio": audio,
+            "audio": audio_raw,
             "spectrogram_raw": spectrogram_raw,
-            "spectrogram": spectrogram,
+            "spectrogram": spectrogram_raw,
             "text": text,
             "text_encoded": text_encoded,
             "audio_path": audio_path,
         }
 
-        # Note: you may want to preserve both audio in time domain and
-        # in time-frequency domain for logging
         instance_data = self.preprocess_data(instance_data)
 
         return instance_data

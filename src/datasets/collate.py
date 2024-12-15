@@ -16,7 +16,6 @@ def collate_fn(dataset_items: list[dict]):
     """
     result_batch = {}
     spectrogram_length = []
-    spectrogram_raw_length = []
     text_encoded_length = []
     text = []
     audio = []
