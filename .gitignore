@@ -104,7 +104,8 @@ ENV/
 data/
 input/
 saved/
-saved_train_2/
+saved_2/
+inference/
 wandb/
 .cometml-runs/
 outputs/
@@ -117,5 +118,6 @@ __MACOSX/
 
 .pre-commit-config.yaml
 librispeech-vocab.txt
-model_best.pth
+model_best_1.pth
+model_best_2.pth
 3-gram.pruned.1e-7.arpa

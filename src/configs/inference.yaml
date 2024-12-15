@@ -1,17 +1,21 @@
 defaults:
   - model: main
-  - metrics: example
-  - datasets: test # we do not want to run inference on training data
-  - dataloader: example
-  - transforms: example
+  - writer: wandb
+  - metrics: train1
+  - datasets: test
+  - dataloader: train1
+  - transforms: train1
   - _self_
-inferencer:
-  device_tensors: ["spectrogram"] # which tensors should be on device (ex. GPU)
-  device: auto # device name or "auto"
-  save_path: "example" # any name here, can be a dataset name
-  seed: 1
-  from_pretrained: "model_best.pth" # path to the pretrained model
+
 text_encoder:
   _target_: src.text_encoder.CTCTextEncoder
   lm: 3-gram.pruned.1e-7.arpa
   vocab: librispeech-vocab.txt
+
+inferencer:
+  device_tensors: ["spectrogram", "text_encoded"] # which tensors should be on device (ex. GPU)
+  device: auto # device name or "auto"
+  save_dir: "inference" # any name here, can be a dataset name
+  seed: 1
+  override: True
+  from_pretrained: "model_best_2.pth" # path to the pretrained model
