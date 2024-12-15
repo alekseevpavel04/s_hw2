@@ -80,18 +80,22 @@ class BaseDataset(Dataset):
         """
         data_dict = self._index[ind]
         audio_path = data_dict["path"]
-        audio = self.load_audio(audio_path)
+        audio_raw = self.load_audio(audio_path)
         text = data_dict["text"]
         text_encoded = self.text_encoder.encode(text)
+        audio = audio_raw.clone()
 
-        # TODO: Apply wave augmentations if present
+        # Apply wave augmentations if present
         if self.instance_transforms and "wave_augment" in self.instance_transforms:
             audio = self.instance_transforms["wave_augment"](audio)
 
+        spectrogram_raw = self.get_spectrogram(audio_raw)
         spectrogram = self.get_spectrogram(audio)
 
         instance_data = {
+            "audio_raw": audio_raw,
             "audio": audio,
+            "spectrogram_raw": spectrogram_raw,
             "spectrogram": spectrogram,
             "text": text,
             "text_encoded": text_encoded,

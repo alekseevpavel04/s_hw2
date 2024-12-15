@@ -1,5 +1,5 @@
 from pathlib import Path
-
+import wandb
 import pandas as pd
 
 from src.logger.utils import plot_spectrogram
@@ -79,15 +79,31 @@ class Trainer(BaseTrainer):
         # logging scheme might be different for different partitions
         if mode == "train":  # the method is called only every self.log_step steps
             self.log_spectrogram(**batch)
+            self.log_audio(**batch)
         else:
             # Log Stuff
             self.log_spectrogram(**batch)
             self.log_predictions(**batch)
 
-    def log_spectrogram(self, spectrogram, **batch):
+    def log_spectrogram(self, spectrogram, spectrogram_raw, **batch):
         spectrogram_for_plot = spectrogram[0].detach().cpu()
+        spectrogram_raw_for_plot = spectrogram_raw[0].detach().cpu()
         image = plot_spectrogram(spectrogram_for_plot)
+        image_raw = plot_spectrogram(spectrogram_raw_for_plot)
         self.writer.add_image("spectrogram", image)
+        self.writer.add_image("spectrogram_raw", image_raw)
+
+    def log_audio(self, text, audio, audio_raw, audio_path, to_log = 5, **batch):
+        rows = {}
+        for i in range(min(to_log, len(text))):
+            rows[Path(audio_path[i]).name] = {
+                "raw_audio": wandb.Audio(audio[i].squeeze(0).detach().cpu(), sample_rate=16000),
+                "audio": wandb.Audio(audio_raw[i].squeeze(0).detach().cpu(), sample_rate=16000)
+            }
+        self.writer.add_table(
+            "audio", pd.DataFrame.from_dict(rows, orient="index")
+        )
+
 
     def log_predictions(
         self, text, log_probs, log_probs_length, audio_path, examples_to_log=100, **batch
