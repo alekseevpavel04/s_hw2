@@ -121,4 +121,5 @@ __MACOSX/
 librispeech-vocab.txt
 model_best_1.pth
 model_best_2.pth
+model_best_3.pth
 3-gram.pruned.1e-7.arpa

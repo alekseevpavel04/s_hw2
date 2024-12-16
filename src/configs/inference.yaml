@@ -18,4 +18,4 @@ inferencer:
   save_path: "inference" # any name here, can be a dataset name
   seed: 1
   override: True
-  from_pretrained: "model_best_2.pth" # path to the pretrained model
+  from_pretrained: "model_best_3.pth" # path to the pretrained model
