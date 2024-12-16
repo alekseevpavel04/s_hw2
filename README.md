@@ -60,7 +60,7 @@ Run the following command to perform inference and calculate metrics:
 
 ```bash
 python inference.py
-
+```
 
 ## Credits
 
