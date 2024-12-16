@@ -9,7 +9,7 @@ defaults:
 
 text_encoder:
   _target_: src.text_encoder.CTCTextEncoder
-  lm: 3-gram.pruned.1e-7.arpa
+  lm: 3-gram.arpa
   vocab: librispeech-vocab.txt
 
 inferencer:
