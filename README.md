@@ -51,7 +51,7 @@ Follow these steps to install the project:
 6. Download the necessary data (models, language models, and vocabulary):
 
    ```bash
-   sh ./download_all_we_need.sh
+   sh download_all_we_need.sh
    ```
 
 ## Quick Inference with Metrics Calculation
