@@ -14,6 +14,11 @@ This repository contains a template for solving ASR task with PyTorch. This temp
 
 See the task assignment [here](https://github.com/markovka17/dla/tree/2024/hw1_asr).
 
+## Results and Report
+Results: wer on test-other is 24.432
+
+See the report [here](https://api.wandb.ai/links/alekceevpavel/o9kqtaju).
+
 ## Installation
 
 Follow these steps to install the project:
